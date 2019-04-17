@@ -1,0 +1,9 @@
+mapname:noNameMonoAgentExplo
+agentExplo:Explo1:3:free:-1:-1:0:1:1
+agentExplo:Explo2:3:free:-1:-1:0:1:1
+agentExplo:Explo3:3:free:-1:-1:0:1:1
+agentExplo:Explo4:3:free:-1:-1:0:1:1
+agentExplo:Explo5:3:free:-1:-1:0:1:1
+agentCollect:Collect1:3:free:1000:-1:0:1:1
+agentCollect:Collect2:3:free:-1:1000:0:1:2
+agentCollect:Collect3:3:free:1000:-1:0:2:1
