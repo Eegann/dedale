@@ -139,11 +139,17 @@ public class MapNodes implements Serializable {
     }
 
     public void setWumpusToOpen(){
-        for(NodeInfo ni: nodes){
-            if(ni.getType().equals(NodeInfo.NodeType.wumpus)){
-                ni = new NodeInfo(ni.getId(), NodeInfo.NodeType.open, new Date().getTime());
+        //reset old nodes and wumpus nodes.
+        ArrayList<NodeInfo> nodes2 = new ArrayList<>();
+        for(NodeInfo ni:nodes){
+            if(ni.getType().equals(NodeInfo.NodeType.wumpus) || new Date().getTime() - ni.getTimer() > 5000){
+                nodes2.add(new NodeInfo(ni.getId(), NodeInfo.NodeType.open, new Date().getTime()));
+            }
+            else{
+                nodes2.add(new NodeInfo(ni.getId(), ni.getType(), ni.getTimer()));
             }
         }
+        nodes = nodes2;
     }
 
     public ArrayList<NodeInfo> getNodes() {

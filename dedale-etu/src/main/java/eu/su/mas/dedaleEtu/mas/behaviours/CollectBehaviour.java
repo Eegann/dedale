@@ -44,6 +44,8 @@ public class CollectBehaviour extends SimpleBehaviour {
     ReceivePingBehaviour rpb;
     ReceiveMessageBehaviour rmb;
 
+    private int block;
+
     public CollectBehaviour(final AbstractDedaleAgent myagent, MapRepresentation myMap, List<String> agentNames, ReceiveMessageBehaviour rb, SendMessageBehaviour smb, NodeInfo.NodeType type, ReceivePingBehaviour rpb, ReceiveMessageBehaviour rmb) {
         super(myagent);
         this.myMap=myMap;
@@ -58,6 +60,7 @@ public class CollectBehaviour extends SimpleBehaviour {
         this.bagCapacity = ((AbstractDedaleAgent)myAgent).getBackPackFreeSpace();
         this.rmb = rmb;
         this.rpb = rpb;
+        this.block = 0;
     }
 
     @Override
@@ -73,10 +76,14 @@ public class CollectBehaviour extends SimpleBehaviour {
              * Just added here to let you see what the agent is doing, otherwise he will be too quick
              */
             try {
-                this.myAgent.doWait(200);
+                if(nextPath.isEmpty()){
+                    this.myAgent.doWait(300);
+                }
+                this.myAgent.doWait(500);
             } catch (Exception e) {
                 e.printStackTrace();
             }
+
 
             this.updateData();
             HashMap<String,String> agentsPosition = this.myMap.getAgentsPosition();
@@ -137,10 +144,11 @@ public class CollectBehaviour extends SimpleBehaviour {
 
             ArrayList<String> stenchNodes = mapNodes.getStenchNodes();
 
-            for(String stench:stenchNodes){
-                if(stenchNodes.containsAll(myMap.getNeighbor(stench))){
-                    System.out.println("Wumpus: "+stench);
-                    this.mapNodes.updateNode(new NodeInfo(stench, NodeInfo.NodeType.wumpus, new Date().getTime()));
+            if(stenchNodes.contains(myPosition)){
+                if(!nextPath.isEmpty() && stenchNodes.contains(this.nextPath.get(0)) && ! agentsPosition.values().contains(this.nextPath.get(0))){
+                    this.mapNodes.updateNode(new NodeInfo(this.nextPath.get(0), NodeInfo.NodeType.wumpus, new Date().getTime()));
+                    this.nextPath.clear();
+
                 }
             }
             this.updateData();
@@ -154,7 +162,7 @@ public class CollectBehaviour extends SimpleBehaviour {
             //size of nextPath = 0 means either we are on a treasure node or we've been moved to give the priority to other agents.
             //No matter which case, we'll look for the next treasure node to check.
 
-            if(this.nextPath.size() == 0 ){
+            if(this.nextPath.size() == 0 || ((AbstractDedaleAgent)this.myAgent).getBackPackFreeSpace() < this.bagCapacity){
                 if(this.myMap.getNeighbor(agentsPosition.get("Tanker1")).contains(myPosition) && ((AbstractDedaleAgent)this.myAgent).getBackPackFreeSpace() < this.bagCapacity){
                     ((AbstractDedaleAgent)this.myAgent).emptyMyBackPack("Tanker1");
                 }
@@ -164,24 +172,47 @@ public class CollectBehaviour extends SimpleBehaviour {
                 //In this part, we check, everytime, if we're on the path of an agent which is more important.
                 //We will then select a new path to let the other agent move freely to his destination.
                 for (String name : agentNames) {
-                    if(new Date().getTime() - agentsTimer.get(name)<1000) {
+                    if(new Date().getTime() - agentsTimer.get(name)<1000 && agentsPath.get(name).size() > 0) {
                         //Gives priority to priority agents/lexicographicaly smaller agents
-                        if (agentsPriority.get(name) || (agentsPath.get(name).size() > 0 && (name.startsWith("Collect") && this.myAgent.getLocalName().compareTo(name) > 0))) {
+                        if (agentsPriority.get(name) || (name.startsWith("Collect") && this.myAgent.getLocalName().compareTo(name) > 0)) {
                             //Clear the naxt path if we are on an other agent's next position
                             if (agentsPath.get(name).get(0).equals(myPosition)) {
                                 this.nextPath.clear();
                                 for (NodeInfo ni : this.mapNodes.getCloseNodes()) {
-                                    //We select a path to a node that is not on the more important agent's path
-                                    if (!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition) && !agentsPosition.values().contains(ni.getId()) ) {
-                                        List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
-                                        //Select a path if there's no other agent on the way or if it's not on a priority agent's path
-                                        if (!agentsPosition.get(name).equals(tempPath.get(0)) && !(agentsPriority.get(name) && agentsPath.get(name).contains(tempPath.get(0)))) {
-                                            //Chose only a better path
-                                            if (this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) {
-                                                this.nextPath = (ArrayList<String>) tempPath;
+                                    if(agentsPriority.get(name)){
+                                        if(!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition)){
+                                            List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
+                                            if( tempPath.size()>0 && !agentsPosition.get(name).equals(tempPath.get(0)) && !agentsPath.get(name).contains(tempPath.get(0))){
+                                                if (this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) {
+                                                    this.nextPath = (ArrayList<String>) tempPath;
+                                                }
                                             }
                                         }
                                     }
+                                    else{
+                                        //We select a path to a node that is not on the more important agent's path
+                                        if (!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition) ) {
+                                            List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
+                                            if(tempPath.size()>0){
+                                                //Select a path if there's no other agent on the way or if it's not on a priority agent's path
+                                                boolean free = true;
+                                                for(String n: agentNames){
+                                                    if((n.startsWith("Collect") && this.myAgent.getLocalName().compareTo(n) > 0)){
+                                                        if(agentsPosition.get(n).contains(tempPath.get(0))){
+                                                            free=false;
+                                                        }
+                                                    }
+                                                }
+                                                if (free) {
+                                                    //Chose only a better path
+                                                    if (this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) {
+                                                        this.nextPath = (ArrayList<String>) tempPath;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
                                 }
                                 System.out.println(this.myAgent.getLocalName()+" on path of "+name+" new path: "+nextPath+" "+agentsPriority);
                                 if (agentsPriority.get(name)) {
@@ -204,7 +235,7 @@ public class CollectBehaviour extends SimpleBehaviour {
                 if(inPath) {
                     for (String n : this.myMap.getMultiNodes()) {
                         List<String> tempPath = this.myMap.getShortestPath(myPosition, n);
-                        if (tempPath.size() < this.nextPath.size() || this.nextPath.size() == 0) {
+                        if ((tempPath.size() < this.nextPath.size() || this.nextPath.size() == 0) && tempPath.size()>0) {
                             this.nextPath = (ArrayList<String>) tempPath;
                         }
                     }
@@ -217,7 +248,7 @@ public class CollectBehaviour extends SimpleBehaviour {
                     }
                     for(String s:neighbor){
 
-                        if(!agentsPosition.values().contains(s) && !this.nextPath.contains(s) && !myPosition.equals(s)){
+                        if(!this.nextPath.contains(s) && !myPosition.equals(s)){
                             this.nextPath.add(s);
                             break;
                         }
@@ -226,12 +257,24 @@ public class CollectBehaviour extends SimpleBehaviour {
                 }
             }
 
+            if(block == 5 && this.mapNodes.getStenchNodes().contains(myPosition)){
+                block = 0;
+                this.mapNodes.updateNode(new NodeInfo(nextPath.get(0), NodeInfo.NodeType.wumpus, new Date().getTime()));
+                nextPath.clear();
+                priority = false;
+            }
+            if(block == 10){
+                block = 0;
+                nextPath.clear();
+                priority = false;
+            }
+
             this.myMap.updateAgentsInfo(this.myAgent.getLocalName(), new AgentInfo(new ArrayList<>(nextPath), myPosition, ((AbstractDedaleAgent) this.myAgent).getMyExpertise(), new Date().getTime()));
 
             MessageInfo m = new MessageInfo(mapNodes, this.myMap.getEdges(), this.myMap.getAgentsInfo(), this.priority);
             this.smb.updateMessage(m);
 
-            System.out.println(this.myAgent.getLocalName()+" "+this.nextPath);
+            System.out.println(this.myAgent.getLocalName()+" "+block+" "+" "+priority+" "+this.nextPath);
 
             if( nextPath.size() > 0 && !myMap.getNeighbor(myPosition).contains(nextPath.get(0))){
                 this.nextPath.clear();
@@ -246,10 +289,14 @@ public class CollectBehaviour extends SimpleBehaviour {
                 boolean couldMove = ((AbstractDedaleAgent) this.myAgent).moveTo(nextNode);
                 if (couldMove){
                     this.nextPath.remove(0);
-                    if(this.nextPath.size()==0){
-                        this.priority = false;
-                    }
+                    this.block = 0;
                 }
+                else{
+                    this.block ++;
+                }
+            }
+            if(this.nextPath.size()==0){
+                this.priority = false;
             }
         }
     }

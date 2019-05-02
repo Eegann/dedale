@@ -35,6 +35,7 @@ public class TankerBehaviour extends SimpleBehaviour {
 
     private boolean onPath;
 
+    private int block;
 
     public TankerBehaviour(final AbstractDedaleAgent myagent, MapRepresentation myMap, ReceiveMessageBehaviour rmb, SendMessageBehaviour smb, ArrayList<String> agentNames) {
         super(myagent);
@@ -46,6 +47,7 @@ public class TankerBehaviour extends SimpleBehaviour {
         nextPath = new ArrayList<>();
         priority = false;
         onPath = false;
+        block = 0;
     }
 
     @Override
@@ -61,6 +63,13 @@ public class TankerBehaviour extends SimpleBehaviour {
         if (myPosition!=null){
             //List of observable from the agent's current position
             List<Couple<String,List<Couple<Observation,Integer>>>> lobs=((AbstractDedaleAgent)this.myAgent).observe();//myPosition
+
+            if(block == 5 && this.mapNodes.getStenchNodes().contains(myPosition)){
+                block = 0;
+                this.mapNodes.updateNode(new NodeInfo(nextPath.get(0), NodeInfo.NodeType.wumpus, new Date().getTime()));
+                nextPath.clear();
+                priority = false;
+            }
 
             for(int i=0;i<lobs.size();i++){
                 if(lobs.get(i).getRight().size()>0) {
@@ -118,7 +127,7 @@ public class TankerBehaviour extends SimpleBehaviour {
              * Just added here to let you see what the agent is doing, otherwise he will be too quick
              */
             try {
-                this.myAgent.doWait(200);
+                this.myAgent.doWait(500);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -162,32 +171,61 @@ public class TankerBehaviour extends SimpleBehaviour {
                 //In this part, we check, everytime, if we're on the path of an agent which is more important.
                 //We will then select a new path to let the other agent move freely to his destination.
                 for (String name : agentNames) {
-                    if(new Date().getTime() - agentsTimer.get(name)<1000) {
-                        //Gives priority to priority agents/lexicographicaly smaller agents
-                        if (agentsPath.get(name).size() > 0) {
-                            //Clear the naxt path if we are on an other agent's next position
-                            if (agentsPath.get(name).get(0).equals(myPosition)) {
-                                onPath = true;
-                                this.nextPath.clear();
-                                for (NodeInfo ni : this.mapNodes.getCloseNodes()) {
-                                    //We select a path to a node that is not on the more important agent's path
-                                    if (!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition)) {
+                    if(new Date().getTime() - agentsTimer.get(name)<1000 && agentsPath.get(name).size() > 0) {
+
+                        //Clear the naxt path if we are on an other agent's next position
+                        if (agentsPath.get(name).get(0).equals(myPosition)) {
+                            onPath = true;
+                            this.nextPath.clear();
+                            for (NodeInfo ni : this.mapNodes.getCloseNodes()) {
+                                if(agentsPriority.get(name)){
+                                    if(!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition)){
                                         List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
-                                        //Select a path if there's no other agent on the way or if it's not on a priority agent's path
-                                        if (tempPath.size()>0 && !agentsPosition.values().contains(tempPath.get(0))) {
-                                            //Chose only a better path
-                                            if ((this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) ) {
+                                        if( !agentsPosition.get(name).equals(tempPath.get(0)) && !agentsPath.get(name).contains(tempPath.get(0))){
+                                            if (this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) {
                                                 this.nextPath = (ArrayList<String>) tempPath;
                                             }
                                         }
                                     }
                                 }
-                                if (agentsPriority.get(name)) {
-                                    this.priority = true;
-                                    break;
+                                else{
+                                    //We select a path to a node that is not on the more important agent's path
+                                    if (!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition) ) {
+                                        List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
+                                        if(tempPath.size()>0){
+                                            //Select a path if there's no other agent on the way or if it's not on a priority agent's path
+                                            boolean free = true;
+                                            for(String n: agentNames){
+                                                if(agentsPosition.get(n).contains(tempPath.get(0))){
+                                                    free=false;
+                                                }
+                                            }
+                                            if (free) {
+                                                //Chose only a better path
+                                                if (this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) {
+                                                    this.nextPath = (ArrayList<String>) tempPath;
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                                System.out.println(myAgent.getLocalName() + " on path of " + name + " " + agentsPath.get(name) + " my new path: " + nextPath);
+                                //We select a path to a node that is not on the more important agent's path
+                                if (!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition)) {
+                                    List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
+                                    //Select a path if there's no other agent on the way or if it's not on a priority agent's path
+                                    if (tempPath.size()>0 && !agentsPosition.values().contains(tempPath.get(0))) {
+                                        //Chose only a better path
+                                        if ((this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) ) {
+                                            this.nextPath = (ArrayList<String>) tempPath;
+                                        }
+                                    }
+                                }
                             }
+                            if (agentsPriority.get(name)) {
+                                this.priority = true;
+                                break;
+                            }
+                            System.out.println(myAgent.getLocalName() + " on path of " + name + " " + agentsPath.get(name) + " my new path: " + nextPath);
                         }
                     }
                 }
@@ -208,7 +246,7 @@ public class TankerBehaviour extends SimpleBehaviour {
                 }
                 for(String s:neighbor){
 
-                    if(!agentsPosition.values().contains(s) && !this.nextPath.contains(s) && !myPosition.equals(s)){
+                    if(!this.nextPath.contains(s) && !myPosition.equals(s)){
                         this.nextPath.add(s);
                         break;
                     }
@@ -221,6 +259,7 @@ public class TankerBehaviour extends SimpleBehaviour {
 
 
             MessageInfo m = new MessageInfo(mapNodes, this.myMap.getEdges(), this.myMap.getAgentsInfo(), false);
+            System.out.println(this.myAgent.getLocalName()+" "+" "+priority+" "+this.nextPath);
 
             this.smb.updateMessage(m);
 
@@ -232,11 +271,14 @@ public class TankerBehaviour extends SimpleBehaviour {
                 boolean couldMove = ((AbstractDedaleAgent) this.myAgent).moveTo(nextNode);
                 if (couldMove){
                     this.nextPath.remove(0);
-                    if(this.nextPath.size()==0){
-                        this.priority = false;
-                        this.onPath = false;
-                    }
                 }
+                else{
+                    this.block++;
+                }
+            }
+            if(this.nextPath.size()==0){
+                this.priority = false;
+                this.onPath = false;
             }
         }
     }

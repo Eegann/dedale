@@ -43,6 +43,8 @@ public class ExploMultiBehaviour extends SimpleBehaviour {
 
     private MapNodes mapNodes;
 
+    private int block;
+
 
     public ExploMultiBehaviour(final AbstractDedaleAgent myagent, MapRepresentation myMap, List<String> agentNames, ReceiveMessageBehaviour rmb, ReceivePingBehaviour rpb, SendMessageBehaviour smb, ExploTreasureBehaviour etb, CollectBehaviour cb, OpenChestMultiBehaviour ocmb) {
         super(myagent);
@@ -56,6 +58,7 @@ public class ExploMultiBehaviour extends SimpleBehaviour {
         this.ocmb = ocmb;
         this.nextPath = new ArrayList<>();
         this.mapNodes = new MapNodes();
+        this.block = 0;
     }
 
     @Override
@@ -120,9 +123,15 @@ public class ExploMultiBehaviour extends SimpleBehaviour {
              * Just added here to let you see what the agent is doing, otherwise he will be too quick
              */
             try {
-                this.myAgent.doWait(300);
+                this.myAgent.doWait(500);
             } catch (Exception e) {
                 e.printStackTrace();
+            }
+
+            if(block == 5&& this.mapNodes.getStenchNodes().contains(myPosition) ){
+                block = 0;
+                this.mapNodes.updateNode(new NodeInfo(nextPath.get(0), NodeInfo.NodeType.wumpus, new Date().getTime()));
+                nextPath.clear();
             }
 
             this.updateData(myPosition);
@@ -133,13 +142,14 @@ public class ExploMultiBehaviour extends SimpleBehaviour {
             HashMap<String,ArrayList<String>> agentsPath = this.myMap.getAgentsPath();
             ArrayList<String> stenchNodes = this.mapNodes.getStenchNodes();
 
-            for(String stench:stenchNodes){
-                //TODO change condition to add wumpus node
-                if(stenchNodes.containsAll(myMap.getNeighbor(stench))){
-                    System.out.println("Wumpus: "+stench);
-                    this.mapNodes.updateNode(new NodeInfo(stench, NodeInfo.NodeType.wumpus, new Date().getTime()));
+            if(stenchNodes.contains(myPosition)){
+                if(!nextPath.isEmpty() && stenchNodes.contains(this.nextPath.get(0)) && ! agentsPosition.values().contains(this.nextPath.get(0))){
+                    this.mapNodes.updateNode(new NodeInfo(this.nextPath.get(0), NodeInfo.NodeType.wumpus, new Date().getTime()));
+                    this.nextPath.clear();
+
                 }
             }
+
             this.updateData(myPosition);
             System.out.println(mapNodes.getWumpusString()+" "+mapNodes.getRecentWumpusString());
 
@@ -235,8 +245,9 @@ public class ExploMultiBehaviour extends SimpleBehaviour {
                     boolean couldMove = ((AbstractDedaleAgent) this.myAgent).moveTo(nextNode);
                     if (couldMove) {
                         nextPath.remove(0);
+                        this.block = 0;
                     } else {
-                        nextPath.clear();
+                        this.block++;
                     }
                 }
             }

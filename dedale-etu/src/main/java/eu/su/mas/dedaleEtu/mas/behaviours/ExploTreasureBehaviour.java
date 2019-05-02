@@ -73,17 +73,17 @@ public class ExploTreasureBehaviour extends SimpleBehaviour {
             //List of observable from the agent's current position
             List<Couple<String,List<Couple<Observation,Integer>>>> lobs=((AbstractDedaleAgent)this.myAgent).observe();//myPosition
 
-            if(block == 5){
-                block = 0;
-                nextPath.clear();
-                priority = false;
-                givePrio = false;
-            }
+
             /**
              * Just added here to let you see what the agent is doing, otherwise he will be too quick
              */
             try {
-                this.myAgent.doWait(nextPath.isEmpty()?500:300);
+                if(nextPath.isEmpty()){
+                    this.myAgent.doWait(1000);
+                }
+                else{
+                    this.myAgent.doWait(500);
+                }
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -136,15 +136,6 @@ public class ExploTreasureBehaviour extends SimpleBehaviour {
 
                 }
             }
-            ArrayList<String> stenchNodes = this.mapNodes.getStenchNodes();
-
-
-            for(String stench:stenchNodes){
-                if(stenchNodes.containsAll(myMap.getNeighbor(stench))){
-                    System.out.println("Wumpus: "+stench);
-                    this.mapNodes.updateNode(new NodeInfo(stench, NodeInfo.NodeType.wumpus, new Date().getTime()));
-                }
-            }
             this.updateData();
 
             for(String node: nextPath){
@@ -172,7 +163,7 @@ public class ExploTreasureBehaviour extends SimpleBehaviour {
             if(this.nextPath.size() == 0){
                 ArrayList<NodeInfo> treasureNode = this.mapNodes.getTreasureNodes();
                 if(treasureNode.size()==0){
-                    System.out.println(this.myAgent.getLocalName()+" no mode treasure, i'm now useless now");
+                    System.out.println(this.myAgent.getLocalName()+" no more treasure, i'm now useless now");
                     this.rmb.setOnEnd(0);
                     this.rpb.setOnEnd(1);
                     this.mapNodes.setWumpusToOpen();
@@ -191,36 +182,44 @@ public class ExploTreasureBehaviour extends SimpleBehaviour {
             //We will then select a new path to let the other agent move freely to his destination.
             if(!this.priority) {
                 for (String name : agentNames) {
-                    if((new Date().getTime() - agentsTimer.get(name)) < 1000) {
+                    if((new Date().getTime() - agentsTimer.get(name)) < 1000 && agentsPath.get(name).size() > 0) {
                         //Gives prio to priority agents/collect agents/lexicographicaly smaller agents
-                        if ((agentsPriority.get(name) && agentsPath.get(name).size() > 0) || (agentsPath.get(name).size() > 0 && (name.startsWith("Collect") || this.myAgent.getLocalName().compareTo(name) > 0))) {
+                        if (agentsPriority.get(name) || (name.startsWith("Collect") || this.myAgent.getLocalName().compareTo(name) > 0)) {
 
                             //Clear the naxt path if we are on an other agent's next position
                             if (agentsPath.get(name).get(0).equals(myPosition) ) {
                                 this.nextPath.clear();
                                 for (NodeInfo ni : this.mapNodes.getCloseNodes()) {
-                                    //We select a path to a node that is not on the more important agent's path
-                                    if (!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition)) {
-                                        List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
-                                        //Select a path if there's no other agent on the way
-                                        boolean possiblePath = true;
-                                        if(agentsPriority.get(name)){
-                                            if(agentsPosition.get(name).equals(tempPath.get(0))){
-                                                possiblePath = false;
-                                            }
-                                        }
-                                        else{
-                                            for (String n : agentNames) {
-                                                if (agentsPosition.get(n).equals(tempPath.get(0))) {
-                                                    possiblePath = false;
+                                    if(agentsPriority.get(name)){
+                                        if(!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition)){
+                                            List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
+                                            if( tempPath.size()>0 && !agentsPosition.get(name).equals(tempPath.get(0)) && !agentsPath.get(name).contains(tempPath.get(0))){
+                                                if ((this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) && nextPath.size()>0) {
+                                                    this.nextPath = (ArrayList<String>) tempPath;
                                                 }
                                             }
                                         }
-
-                                        if (possiblePath) {
-                                            //Chose only a better path
-                                            if (this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) {
-                                                this.nextPath = (ArrayList<String>) tempPath;
+                                    }
+                                    else{
+                                        //We select a path to a node that is not on the more important agent's path
+                                        if (!agentsPath.get(name).contains(ni.getId()) && !ni.getId().equals(myPosition) ) {
+                                            List<String> tempPath = this.myMap.getShortestPath(myPosition, ni.getId());
+                                            if(tempPath.size()>0){
+                                                //Select a path if there's no other agent on the way or if it's not on a priority agent's path
+                                                boolean free = true;
+                                                for(String n: agentNames){
+                                                    if(n.startsWith("Collect") || (n.startsWith("Explo") && this.myAgent.getLocalName().compareTo(n) > 0)){
+                                                        if(agentsPosition.get(n).contains(tempPath.get(0))){
+                                                            free=false;
+                                                        }
+                                                    }
+                                                }
+                                                if (free) {
+                                                    //Chose only a better path
+                                                    if (this.nextPath.size() == 0 || this.nextPath.size() > tempPath.size()) {
+                                                        this.nextPath = (ArrayList<String>) tempPath;
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -239,7 +238,7 @@ public class ExploTreasureBehaviour extends SimpleBehaviour {
             if(this.nextPath.size()==0){
                 for (String n : this.myMap.getMultiNodes()) {
                     List<String> tempPath = this.myMap.getShortestPath(myPosition, n);
-                    if (tempPath.size() < this.nextPath.size() || this.nextPath.size() == 0) {
+                    if ((tempPath.size() < this.nextPath.size() || this.nextPath.size() == 0)&& tempPath.size()>0) {
                         this.nextPath = (ArrayList<String>) tempPath;
                     }
                 }
@@ -252,7 +251,7 @@ public class ExploTreasureBehaviour extends SimpleBehaviour {
                 }
                 for(String s:neighbor){
 
-                    if(!agentsPosition.values().contains(s) && !this.nextPath.contains(s) && !myPosition.equals(s)){
+                    if(!this.nextPath.contains(s) && !myPosition.equals(s)){
                         this.nextPath.add(s);
                         break;
                     }
@@ -260,7 +259,23 @@ public class ExploTreasureBehaviour extends SimpleBehaviour {
                 this.priority = true;
             }
 
+            if(block == 5 && this.mapNodes.getStenchNodes().contains(myPosition)){
+                block = 0;
+                this.mapNodes.updateNode(new NodeInfo(nextPath.get(0), NodeInfo.NodeType.wumpus, new Date().getTime()));
+                nextPath.clear();
+                priority = false;
+                givePrio = false;
+            }
+            if(block == 10){
+                block = 0;
+                nextPath.clear();
+                priority = false;
+                givePrio = false;
+            }
+
             this.myMap.updateAgentsInfo(this.myAgent.getLocalName(), new AgentInfo(new ArrayList<>(nextPath), myPosition, ((AbstractDedaleAgent) this.myAgent).getMyExpertise(), new Date().getTime()));
+
+            System.out.println(this.myAgent.getLocalName()+" "+block+" "+" "+priority+" "+this.nextPath);
 
 
             MessageInfo m = new MessageInfo(mapNodes, this.myMap.getEdges(), this.myMap.getAgentsInfo(), priority);
@@ -278,11 +293,12 @@ public class ExploTreasureBehaviour extends SimpleBehaviour {
                     this.nextPath.remove(0);
                 }
                 else this.block++;
-                if(this.nextPath.size()==0){
-                    if(!this.givePrio && !this.priority) this.actualChecking++;
-                    this.givePrio=false;
-                    this.priority = false;
-                }
+
+            }
+            if(this.nextPath.size()==0){
+                if(!this.givePrio && !this.priority) this.actualChecking++;
+                this.givePrio=false;
+                this.priority = false;
             }
         }
     }

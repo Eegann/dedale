@@ -156,15 +156,19 @@ public class MapRepresentation implements Serializable {
 		dijkstra.init(g2);
 		dijkstra.setSource(g2.getNode(idFrom));
 		dijkstra.compute();//compute the distance to all nodes from idFrom
-		//TODO render NULL
-		List<Node> path=dijkstra.getPath(g2.getNode(idTo)).getNodePath(); //the shortest path from idFrom to idTo
+		try{
+			List<Node> path=dijkstra.getPath(g2.getNode(idTo)).getNodePath(); //the shortest path from idFrom to idTo
 
-		Iterator<Node> iter=path.iterator();
-		while (iter.hasNext()){
-			shortestPath.add(iter.next().getId());
+			Iterator<Node> iter=path.iterator();
+			while (iter.hasNext()){
+				shortestPath.add(iter.next().getId());
+			}
+			dijkstra.clear();
+			if(shortestPath.size()>0) shortestPath.remove(0);//remove the current position
+		} catch(NullPointerException e){
+			shortestPath = new ArrayList<>();
 		}
-		dijkstra.clear();
-		if(shortestPath.size()>0) shortestPath.remove(0);//remove the current position
+
 		return shortestPath;
 	}
 

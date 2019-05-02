@@ -11,8 +11,6 @@ import eu.su.mas.dedale.mas.agents.dedaleDummyAgents.DummyWumpusShift;
 import eu.su.mas.dedaleEtu.mas.agents.agents.CollectMultiAgent;
 import eu.su.mas.dedaleEtu.mas.agents.agents.ExploreMultiAgent;
 import eu.su.mas.dedaleEtu.mas.agents.agents.TankerMultiAgent;
-import eu.su.mas.dedaleEtu.mas.agents.dummies.DummyTankerAgent;
-import eu.su.mas.dedaleEtu.mas.agents.dummies.ExploreSoloAgent;
 import jade.core.Profile;
 import jade.core.ProfileImpl;
 import jade.core.Runtime;

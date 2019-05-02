@@ -44,6 +44,7 @@ public class OpenChestMultiBehaviour extends SimpleBehaviour {
 
     boolean priority;
 
+    int block;
 
     public OpenChestMultiBehaviour(final AbstractDedaleAgent myagent, MapRepresentation myMap, List<String> agentNames, ReceiveMessageBehaviour rmb, ReceivePingBehaviour rpb, SendMessageBehaviour smb) {
         super(myagent);
@@ -55,6 +56,7 @@ public class OpenChestMultiBehaviour extends SimpleBehaviour {
         this.nextPath = new ArrayList<>();
         this.mapNodes = new MapNodes();
         this.priority = false;
+        this.block = 0;
     }
 
     @Override
@@ -65,6 +67,19 @@ public class OpenChestMultiBehaviour extends SimpleBehaviour {
         if (myPosition != null) {
             //List of observable from the agent's current position
             List<Couple<String, List<Couple<Observation, Integer>>>> lobs = ((AbstractDedaleAgent) this.myAgent).observe();//myPosition
+
+            if(block == 5 && this.mapNodes.getStenchNodes().contains(myPosition)){
+                block = 0;
+                if(nextPath.size()>0)this.mapNodes.updateNode(new NodeInfo(nextPath.get(0), NodeInfo.NodeType.wumpus, new Date().getTime()));
+                nextPath.clear();
+                priority = false;
+            }
+            if(block == 10){
+                block = 0;
+                nextPath.clear();
+                priority = false;
+            }
+
             for(int i=0;i<lobs.size();i++){
                 String node = lobs.get(i).getLeft();
                 if(lobs.get(i).getRight().size()>0) {
@@ -110,7 +125,7 @@ public class OpenChestMultiBehaviour extends SimpleBehaviour {
              * Just added here to let you see what the agent is doing, otherwise he will be too quick
              */
             try {
-                this.myAgent.doWait(200);
+                this.myAgent.doWait(500);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -121,14 +136,6 @@ public class OpenChestMultiBehaviour extends SimpleBehaviour {
             HashMap<String, String> agentsPosition = this.myMap.getAgentsPosition();
             HashMap<String, Set<Couple<Observation, Integer>>> agentsExpertise = this.myMap.getAgentsExpertise();
             HashMap<String, Long> agentsTimer = this.myMap.getAgentsTimer();
-            ArrayList<String> stenchNodes = this.mapNodes.getStenchNodes();
-
-            for(String stench:stenchNodes){
-                if(stenchNodes.containsAll(myMap.getNeighbor(stench))){
-                    System.out.println("Wumpus: "+stench);
-                    this.mapNodes.updateNode(new NodeInfo(stench, NodeInfo.NodeType.wumpus, new Date().getTime()));
-                }
-            }
 
             for(String node: nextPath){
                 if(mapNodes.getRecentWumpusString().contains(node)){
@@ -142,27 +149,16 @@ public class OpenChestMultiBehaviour extends SimpleBehaviour {
                 assignedCoallition = this.chestRepartition.computeCoallitions(this.mapNodes);
             }
 
-            long lastSeen = Collections.min(agentsTimer.values());
-
             ArrayList<NodeInfo> chestNodes = this.mapNodes.getChestNodes();
-            //if chestNodes is empty and we got informations on every agents less than 1 sec ago, next state
-            //if (chestNodes.size()==0 && (new Date().getTime() - lastSeen)<1000) {
-            if(chestNodes.size() == 0) {
-                for(String node: this.myMap.getNeighbor(agentsPosition.get("Tanker1"))){
-                    List<String> tempPath = this.myMap.getShortestPath(myPosition, node);
-                    if(this.nextPath.size() == 0 || tempPath.size()<this.nextPath.size()){
-                        this.nextPath = (ArrayList<String>) tempPath;
-                    }
-                }
-            }
-            if(lastSeen < new Date().getTime() - 1000 && chestNodes.size() == 0){
+            System.out.println(chestNodes);
+
+            if( chestNodes.size() == 0){
                 //Explo finished
                 finished = true;
                 //Update on end for receive message and receive ping, so the FSM goes to the right behaviour
                 if(this.myAgent.getLocalName().contains("Explo")){
                     this.rmb.setOnEnd(3);
                     this.rpb.setOnEnd(3);
-                    this.mapNodes.setWumpusToOpen();
                 }
                 else{
                     this.rmb.setOnEnd(3);
@@ -249,12 +245,14 @@ public class OpenChestMultiBehaviour extends SimpleBehaviour {
                 boolean couldMove = ((AbstractDedaleAgent) this.myAgent).moveTo(nextNode);
                 if (couldMove) {
                     nextPath.remove(0);
-                    if(nextPath.size() == 0){
-                        priority = false;
-                    }
+                    block = 0;
                 } else {
                     nextPath.clear();
+                    block ++;
                 }
+            }
+            if(nextPath.size() == 0){
+                priority = false;
             }
         }
 

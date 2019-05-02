@@ -33,7 +33,7 @@ public class ExploreMultiAgent extends AbstractDedaleAgent {
 
         super.setup();
         try {
-            this.doWait(200);
+            this.doWait(500);
         } catch (Exception e) {
             e.printStackTrace();
         }
